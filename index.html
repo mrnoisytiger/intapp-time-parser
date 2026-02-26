@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intapp Timesheet Processor</title>
+    <style>
+        body {
+            font-family: Calibri, Verdana, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #007294;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f0f4f8;
+            border-radius: 6px;
+            border: 1px solid #dce4ec;
+        }
+        input[type="file"] {
+            padding: 8px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        /* Toggle Buttons */
+        .toggle-group {
+            display: inline-flex;
+            margin-top: 15px;
+            overflow: hidden;
+            border-radius: 4px;
+            border: 1px solid #007294;
+        }
+        .toggle-btn {
+            background-color: #fff;
+            color: #007294;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .toggle-btn:not(:last-child) {
+            border-right: 1px solid #007294;
+        }
+        .toggle-btn.active {
+            background-color: #007294;
+            color: #fff;
+        }
+        .toggle-btn:hover:not(.active) {
+            background-color: #e6f0f4;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+            page-break-inside: avoid;
+        }
+        
+        /* Grouping Headers */
+        .level1-row {
+            background-color: #000000;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .level2-row {
+            background-color: #555555;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .header-row th {
+            background-color: #e0e0e0;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* Alternating row colors */
+        .row-odd {
+            background-color: #ffffff;
+        }
+        .row-even {
+            background-color: #f2f2f2;
+        }
+
+        /* --- Print Specific Styles --- */
+        @media print {
+            body, html {
+                margin: 0;
+                background-color: #ffffff;
+                /* Force browsers to print background colors */
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+            }
+            .container {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+            }
+            /* Hide controls when printing */
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls no-print">
+        <h2>Timesheet Processor</h2>
+        <p>Select your Intapp Time HTML export file to generate a cleaned summary.</p>
+        <input type="file" id="fileInput" accept=".html" />
+        
+        <div id="viewToggles" style="display: none;">
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="btnDateMode">Group by Date</button>
+                <button class="toggle-btn" id="btnClientMode">Group by Client Name</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="outputContainer"></div>
+</div>
+
+<script>
+    // State to hold the parsed data and current view mode
+    let allEntries = [];
+    let currentMode = 'date'; // 'date' or 'client'
+
+    // DOM Elements
+    const fileInput = document.getElementById('fileInput');
+    const viewToggles = document.getElementById('viewToggles');
+    const btnDateMode = document.getElementById('btnDateMode');
+    const btnClientMode = document.getElementById('btnClientMode');
+    const outputContainer = document.getElementById('outputContainer');
+
+    // Event Listeners
+    fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            parseHTMLData(e.target.result);
+            viewToggles.style.display = 'block'; // Show toggles once data is loaded
+            renderTable();
+        };
+        reader.readAsText(file);
+    });
+
+    btnDateMode.addEventListener('click', () => {
+        currentMode = 'date';
+        btnDateMode.classList.add('active');
+        btnClientMode.classList.remove('active');
+        renderTable();
+    });
+
+    btnClientMode.addEventListener('click', () => {
+        currentMode = 'client';
+        btnClientMode.classList.add('active');
+        btnDateMode.classList.remove('active');
+        renderTable();
+    });
+
+    // Parsing Logic
+    function parseHTMLData(htmlString) {
+        allEntries = []; // Reset entries
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlString, 'text/html');
+        const tables = doc.querySelectorAll('table.details');
+        
+        let currentDateContext = "Unknown Date";
+
+        tables.forEach(table => {
+            const slCells = Array.from(table.querySelectorAll('td.sl'));
+            
+            // Check if this table actually holds a time entry by looking for the "Client:" label
+            const clientCell = slCells.find(td => td.textContent.trim().includes('Client:'));
+            
+            // If there's a date header in this table, update the current date context
+            const dateCell = table.querySelector('td.sl[colspan="3"]');
+            if (dateCell && dateCell.textContent.match(/\d{1,2}\/\d{1,2}\/\d{4}/)) {
+                currentDateContext = dateCell.textContent.trim();
+            }
+
+            if (!clientCell) return; // Skip non-entry tables
+
+            // The first sibling is the number, the second sibling is the name
+            const clientName = clientCell.nextElementSibling?.nextElementSibling?.textContent.trim() || "Unknown Client";
+            
+            // Process Matter details
+            const matterCell = slCells.find(td => td.textContent.trim().includes('Matter:'));
+            let matterNumberRaw = matterCell?.nextElementSibling?.textContent.trim() || "";
+            let matterNameRaw = matterCell?.nextElementSibling?.nextElementSibling?.textContent.trim() || "Unknown Matter";
+            
+            // Strip leading zeros from numeric sequences (e.g. 56522-00004 -> 56522-4)
+            const strippedMatterNumber = matterNumberRaw.replace(/\b0+(?=\d)/g, '');
+            
+            // Combine name and stripped number
+            const matterName = strippedMatterNumber ? `${matterNameRaw} (${strippedMatterNumber})` : matterNameRaw;
+
+            const hoursCell = slCells.find(td => td.textContent.trim().includes('Hours:'));
+            const hours = hoursCell?.nextElementSibling?.textContent.trim() || "0.00";
+
+            const narrativeCell = table.querySelector('td.narrative');
+            const narrative = narrativeCell?.textContent.trim() || "";
+
+            allEntries.push({
+                date: currentDateContext,
+                clientName: clientName,
+                matterName: matterName,
+                hours: hours,
+                narrative: narrative
+            });
+        });
+    }
+
+    // Rendering Logic
+    function renderTable() {
+        outputContainer.innerHTML = ''; 
+
+        if (allEntries.length === 0) {
+            outputContainer.innerHTML = '<p>No valid time entries found in the uploaded file.</p>';
+            return;
+        }
+
+        if (currentMode === 'date') {
+            renderByDate();
+        } else {
+            renderByClient();
+        }
+    }
+
+    function renderByDate() {
+        // Group entries chronologically by Date
+        const entriesByDate = {};
+        allEntries.forEach(entry => {
+            if (!entriesByDate[entry.date]) entriesByDate[entry.date] = [];
+            entriesByDate[entry.date].push(entry);
+        });
+
+        let html = '<table>';
+
+        for (const [date, entries] of Object.entries(entriesByDate)) {
+            // Level 1: Date
+            html += `<tr class="level1-row">
+                        <td colspan="4">${date}</td>
+                     </tr>`;
+            
+            html += `<tr class="header-row">
+                        <th style="width: 20%;">Client Name</th>
+                        <th style="width: 25%;">Matter Name</th>
+                        <th style="width: 10%;">Hours Billed</th>
+                        <th style="width: 45%;">Narrative</th>
+                     </tr>`;
+            
+            entries.forEach((entry, index) => {
+                const rowClass = index % 2 === 0 ? 'row-odd' : 'row-even';
+                html += `<tr class="${rowClass}">
+                            <td>${entry.clientName}</td>
+                            <td>${entry.matterName}</td>
+                            <td>${entry.hours}</td>
+                            <td>${entry.narrative}</td>
+                         </tr>`;
+            });
+        }
+        html += '</table>';
+        outputContainer.innerHTML = html;
+    }
+
+    function renderByClient() {
+        // Group by Client -> Matter -> Array of entries
+        const grouped = {};
+        allEntries.forEach(entry => {
+            if (!grouped[entry.clientName]) {
+                grouped[entry.clientName] = {};
+            }
+            if (!grouped[entry.clientName][entry.matterName]) {
+                grouped[entry.clientName][entry.matterName] = [];
+            }
+            grouped[entry.clientName][entry.matterName].push(entry);
+        });
+
+        // Sort Clients Alphabetically
+        const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+        let html = '<table>';
+
+        sortedClients.forEach(client => {
+            // Level 1: Client Name
+            html += `<tr class="level1-row">
+                        <td colspan="3">${client}</td>
+                     </tr>`;
+
+            // Sort Matters Alphabetically
+            const sortedMatters = Object.keys(grouped[client]).sort((a, b) => a.localeCompare(b));
+
+            sortedMatters.forEach(matter => {
+                // Level 2: Matter Name (which now also contains the stripped matter number)
+                html += `<tr class="level2-row">
+                            <td colspan="3">${matter}</td>
+                         </tr>`;
+
+                // Header for the data rows
+                html += `<tr class="header-row">
+                            <th style="width: 15%;">Date</th>
+                            <th style="width: 10%;">Hours Billed</th>
+                            <th style="width: 75%;">Narrative</th>
+                         </tr>`;
+
+                // Data Rows
+                grouped[client][matter].forEach((entry, index) => {
+                    const rowClass = index % 2 === 0 ? 'row-odd' : 'row-even';
+                    html += `<tr class="${rowClass}">
+                                <td>${entry.date}</td>
+                                <td>${entry.hours}</td>
+                                <td>${entry.narrative}</td>
+                             </tr>`;
+                });
+            });
+        });
+
+        html += '</table>';
+        outputContainer.innerHTML = html;
+    }
+</script>
+
+</body>
+</html>
