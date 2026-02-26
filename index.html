@@ -107,6 +107,38 @@
         .row-even {
             background-color: #f2f2f2;
         }
+        
+        /* Total Row Styling */
+        .total-row {
+            background-color: #e6f0f4;
+            color: #000;
+        }
+        .total-row td {
+            border-top: 2px solid #007294;
+            border-bottom: 2px solid #007294;
+        }
+
+        /* Collapsible Styling */
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapsible:hover {
+            opacity: 0.9;
+        }
+        .toggle-icon {
+            display: inline-block;
+            width: 16px;
+            font-size: 12px;
+            transition: transform 0.2s;
+            text-align: center;
+        }
+        .collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        .hide-l1, .hide-l2 {
+            display: none !important;
+        }
 
         /* --- Print Specific Styles --- */
         @media print {
@@ -126,6 +158,13 @@
             /* Hide controls when printing */
             .no-print {
                 display: none;
+            }
+            /* Hide toggle arrows and force expand all rows for accurate printing */
+            .toggle-icon {
+                display: none !important;
+            }
+            .hide-l1, .hide-l2 {
+                display: table-row !important;
             }
         }
     </style>
@@ -242,6 +281,28 @@
         });
     }
 
+    // Toggle logic for collapsing sections
+    window.toggleSection = function(row, level) {
+        row.classList.toggle('collapsed');
+        const isCollapsed = row.classList.contains('collapsed');
+        let next = row.nextElementSibling;
+
+        while (next) {
+            // Stop applying class if we hit another header of the same or higher priority
+            if (level === 1 && next.classList.contains('level1-row')) break;
+            if (level === 2 && (next.classList.contains('level1-row') || next.classList.contains('level2-row'))) break;
+
+            if (isCollapsed) {
+                if (level === 1) next.classList.add('hide-l1');
+                if (level === 2) next.classList.add('hide-l2');
+            } else {
+                if (level === 1) next.classList.remove('hide-l1');
+                if (level === 2) next.classList.remove('hide-l2');
+            }
+            next = next.nextElementSibling;
+        }
+    };
+
     // Rendering Logic
     function renderTable() {
         outputContainer.innerHTML = ''; 
@@ -269,9 +330,9 @@
         let html = '<table>';
 
         for (const [date, entries] of Object.entries(entriesByDate)) {
-            // Level 1: Date
-            html += `<tr class="level1-row">
-                        <td colspan="4">${date}</td>
+            // Level 1: Date (Collapsible)
+            html += `<tr class="level1-row collapsible" onclick="toggleSection(this, 1)">
+                        <td colspan="4"><span class="toggle-icon">▼</span> ${date}</td>
                      </tr>`;
             
             html += `<tr class="header-row">
@@ -281,7 +342,11 @@
                         <th style="width: 45%;">Narrative</th>
                      </tr>`;
             
+            let dailyTotal = 0;
+            
             entries.forEach((entry, index) => {
+                dailyTotal += parseFloat(entry.hours) || 0;
+                
                 const rowClass = index % 2 === 0 ? 'row-odd' : 'row-even';
                 html += `<tr class="${rowClass}">
                             <td>${entry.clientName}</td>
@@ -290,6 +355,13 @@
                             <td>${entry.narrative}</td>
                          </tr>`;
             });
+            
+            // Total Row for the Date
+            html += `<tr class="total-row">
+                        <td colspan="2" style="text-align: right; padding-right: 20px;"><strong>Total for ${date}:</strong></td>
+                        <td style="font-weight: bold;">${dailyTotal.toFixed(2)}</td>
+                        <td></td>
+                     </tr>`;
         }
         html += '</table>';
         outputContainer.innerHTML = html;
@@ -314,18 +386,18 @@
         let html = '<table>';
 
         sortedClients.forEach(client => {
-            // Level 1: Client Name
-            html += `<tr class="level1-row">
-                        <td colspan="3">${client}</td>
+            // Level 1: Client Name (Collapsible)
+            html += `<tr class="level1-row collapsible" onclick="toggleSection(this, 1)">
+                        <td colspan="3"><span class="toggle-icon">▼</span> ${client}</td>
                      </tr>`;
 
             // Sort Matters Alphabetically
             const sortedMatters = Object.keys(grouped[client]).sort((a, b) => a.localeCompare(b));
 
             sortedMatters.forEach(matter => {
-                // Level 2: Matter Name (which now also contains the stripped matter number)
-                html += `<tr class="level2-row">
-                            <td colspan="3">${matter}</td>
+                // Level 2: Matter Name (which now also contains the stripped matter number) (Collapsible)
+                html += `<tr class="level2-row collapsible" onclick="toggleSection(this, 2)">
+                            <td colspan="3" style="padding-left: 20px;"><span class="toggle-icon">▼</span> ${matter}</td>
                          </tr>`;
 
                 // Header for the data rows
