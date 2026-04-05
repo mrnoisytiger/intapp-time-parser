@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trello Hours Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f5f7;
+            color: #172b4d;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 800px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 24px;
+            border-bottom: 2px solid #ebecf0;
+            padding-bottom: 15px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #fdfdfe;
+            border: 1px solid #dfe1e6;
+            border-radius: 6px;
+        }
+
+        /* Button Styling */
+        button {
+            background-color: #0079bf; /* Trello Blue */
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #026aa7;
+        }
+
+        button:disabled {
+            background-color: #b3bac5;
+            cursor: not-allowed;
+        }
+
+        /* Toggle Switch Styling */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-label {
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input { 
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #5aac44; /* Trello Green */
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Chart Area */
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+    </style>
+    <script>
+        const runButton = document.getElementById('runButton');
+        const truncateToggle = document.getElementById('truncateToggle');
+        const ctx = document.getElementById('myChart').getContext('2d');
+        let currentChart = null; // Stores the active chart to destroy it before redrawing
+
+        runButton.addEventListener('click', async () => {
+            // 1. Get the state of the toggle
+            const shouldTruncate = truncateToggle.checked;
+            
+            // 2. Build the Webhook URL 
+            // IMPORTANT: Replace this with your actual n8n Webhook GET URL
+            const n8nUrl = `automate.felixen.com/webhook/webhook/7d9d7929-d92c-412e-9939-cb6cc00e38a6`;
+
+            // Update button UI while loading
+            runButton.innerText = 'Fetching Data...';
+            runButton.disabled = true;
+
+            try {
+                // 3. Call the n8n Webhook
+                const response = await fetch(n8nUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+
+                // 4. Extract data. 
+                // Note: Depending on your 'Respond to Webhook' node settings, 
+                // n8n might return the object directly, or wrap it in an array.
+                const chartData = Array.isArray(data) ? data[0] : data;
+
+                // 5. Render the chart
+                renderChart(chartData.dates, chartData.hours);
+
+            } catch (error) {
+                console.error('Error fetching from n8n:', error);
+                alert('Failed to connect to n8n workflow. Check the console for details.');
+            } finally {
+                // Reset button UI
+                runButton.innerText = 'Run Workflow';
+                runButton.disabled = false;
+            }
+        });
+
+        function renderChart(datesArray, hoursArray) {
+            // If a chart already exists, destroy it so we don't draw on top of old data
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            // Create the new Chart.js instance
+            currentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: datesArray,
+                    datasets: [{
+                        label: 'Total Hours',
+                        data: hoursArray,
+                        backgroundColor: '#0079bf', // Matches Trello blue
+                        borderRadius: 4,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }, // Hides the redundant top legend
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.parsed.y} Hours`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Hours Logged' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Date' }
+                        }
+                    }
+                }
+            });
+}
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Trello Hours Dashboard</h1>
+        
+        <div class="controls">
+            <div class="toggle-container">
+                <label class="switch">
+                    <input type="checkbox" id="truncateToggle">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Truncate to Last 21 Days</span>
+            </div>
+            <button id="runButton">Run Workflow</button>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="myChart"></canvas>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
