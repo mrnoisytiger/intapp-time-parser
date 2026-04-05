@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trello Hours Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -132,54 +133,37 @@
             const truncateToggle = document.getElementById('truncateToggle');
             const ctx = document.getElementById('myChart').getContext('2d');
             
-            let currentChart = null; // Stores the active chart to destroy it before redrawing
+            let currentChart = null;
 
             runButton.addEventListener('click', async () => {
-                // 1. Get the state of the toggle
                 const shouldTruncate = truncateToggle.checked;
-                
-                // 2. Build the Webhook URL 
-                // FIX: Added 'https://' and appended the toggle state as a query parameter
-                // const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart?truncate=${shouldTruncate}`;
-                const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart`;
+                const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart?truncate=${shouldTruncate}`;
 
-                // Update button UI while loading
                 runButton.innerText = 'Fetching Data...';
                 runButton.disabled = true;
 
                 try {
-                    // 3. Call the n8n Webhook
                     const response = await fetch(n8nUrl);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     
                     const data = await response.json();
-
-                    // 4. Extract data. 
                     const chartData = Array.isArray(data) ? data[0] : data;
 
-                    // 5. Render the chart
                     renderChart(chartData.dates, chartData.hours);
-
                 } catch (error) {
                     console.error('Error fetching from n8n:', error);
                     alert('Failed to connect to n8n workflow. Check the console for details.');
                 } finally {
-                    // Reset button UI
                     runButton.innerText = 'Run Workflow';
                     runButton.disabled = false;
                 }
             });
 
             function renderChart(datesArray, hoursArray) {
-                // If a chart already exists, destroy it so we don't draw on top of old data
                 if (currentChart) {
                     currentChart.destroy();
                 }
 
-                // Create the new Chart.js instance
                 currentChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
@@ -187,7 +171,7 @@
                         datasets: [{
                             label: 'Total Hours',
                             data: hoursArray,
-                            backgroundColor: '#0079bf', // Matches Trello blue
+                            backgroundColor: '#0079bf',
                             borderRadius: 4,
                             borderWidth: 1
                         }]
@@ -196,11 +180,31 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { display: false }, // Hides the redundant top legend
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
                                         return ` ${context.parsed.y} Hours`;
+                                    }
+                                }
+                            },
+                            // NEW: Annotation Plugin Configuration
+                            annotation: {
+                                annotations: {
+                                    line1: {
+                                        type: 'line',
+                                        yMin: 9,
+                                        yMax: 9,
+                                        borderColor: 'red',
+                                        borderWidth: 3, // Thick line
+                                    },
+                                    line2: {
+                                        type: 'line',
+                                        yMin: 7,
+                                        yMax: 7,
+                                        borderColor: 'orange',
+                                        borderWidth: 2,
+                                        borderDash: [5, 5], // Dotted/dashed effect
                                     }
                                 }
                             }
