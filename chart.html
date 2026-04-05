@@ -140,7 +140,8 @@
                 
                 // 2. Build the Webhook URL 
                 // FIX: Added 'https://' and appended the toggle state as a query parameter
-                const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart?truncate=${shouldTruncate}`;
+                // const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart?truncate=${shouldTruncate}`;
+                const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart`;
 
                 // Update button UI while loading
                 runButton.innerText = 'Fetching Data...';
