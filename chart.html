@@ -127,95 +127,96 @@
         }
     </style>
     <script>
-        const runButton = document.getElementById('runButton');
-        const truncateToggle = document.getElementById('truncateToggle');
-        const ctx = document.getElementById('myChart').getContext('2d');
-        let currentChart = null; // Stores the active chart to destroy it before redrawing
-
-        runButton.addEventListener('click', async () => {
-            // 1. Get the state of the toggle
-            const shouldTruncate = truncateToggle.checked;
+        document.addEventListener('DOMContentLoaded', () => {
+            const runButton = document.getElementById('runButton');
+            const truncateToggle = document.getElementById('truncateToggle');
+            const ctx = document.getElementById('myChart').getContext('2d');
             
-            // 2. Build the Webhook URL 
-            // IMPORTANT: Replace this with your actual n8n Webhook GET URL
-            const n8nUrl = `automate.felixjen.com/webhook/trello-chart`;
+            let currentChart = null; // Stores the active chart to destroy it before redrawing
 
-            // Update button UI while loading
-            runButton.innerText = 'Fetching Data...';
-            runButton.disabled = true;
-
-            try {
-                // 3. Call the n8n Webhook
-                const response = await fetch(n8nUrl);
+            runButton.addEventListener('click', async () => {
+                // 1. Get the state of the toggle
+                const shouldTruncate = truncateToggle.checked;
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
+                // 2. Build the Webhook URL 
+                // FIX: Added 'https://' and appended the toggle state as a query parameter
+                const n8nUrl = `https://automate.felixjen.com/webhook/trello-chart?truncate=${shouldTruncate}`;
 
-                // 4. Extract data. 
-                // Note: Depending on your 'Respond to Webhook' node settings, 
-                // n8n might return the object directly, or wrap it in an array.
-                const chartData = Array.isArray(data) ? data[0] : data;
+                // Update button UI while loading
+                runButton.innerText = 'Fetching Data...';
+                runButton.disabled = true;
 
-                // 5. Render the chart
-                renderChart(chartData.dates, chartData.hours);
-
-            } catch (error) {
-                console.error('Error fetching from n8n:', error);
-                alert('Failed to connect to n8n workflow. Check the console for details.');
-            } finally {
-                // Reset button UI
-                runButton.innerText = 'Run Workflow';
-                runButton.disabled = false;
-            }
-        });
-
-        function renderChart(datesArray, hoursArray) {
-            // If a chart already exists, destroy it so we don't draw on top of old data
-            if (currentChart) {
-                currentChart.destroy();
-            }
-
-            // Create the new Chart.js instance
-            currentChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: datesArray,
-                    datasets: [{
-                        label: 'Total Hours',
-                        data: hoursArray,
-                        backgroundColor: '#0079bf', // Matches Trello blue
-                        borderRadius: 4,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }, // Hides the redundant top legend
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return ` ${context.parsed.y} Hours`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Hours Logged' }
-                        },
-                        x: {
-                            title: { display: true, text: 'Date' }
-                        }
+                try {
+                    // 3. Call the n8n Webhook
+                    const response = await fetch(n8nUrl);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
                     }
+                    
+                    const data = await response.json();
+
+                    // 4. Extract data. 
+                    const chartData = Array.isArray(data) ? data[0] : data;
+
+                    // 5. Render the chart
+                    renderChart(chartData.dates, chartData.hours);
+
+                } catch (error) {
+                    console.error('Error fetching from n8n:', error);
+                    alert('Failed to connect to n8n workflow. Check the console for details.');
+                } finally {
+                    // Reset button UI
+                    runButton.innerText = 'Run Workflow';
+                    runButton.disabled = false;
                 }
             });
-}
+
+            function renderChart(datesArray, hoursArray) {
+                // If a chart already exists, destroy it so we don't draw on top of old data
+                if (currentChart) {
+                    currentChart.destroy();
+                }
+
+                // Create the new Chart.js instance
+                currentChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: datesArray,
+                        datasets: [{
+                            label: 'Total Hours',
+                            data: hoursArray,
+                            backgroundColor: '#0079bf', // Matches Trello blue
+                            borderRadius: 4,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }, // Hides the redundant top legend
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` ${context.parsed.y} Hours`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'Hours Logged' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Date' }
+                            }
+                        }
+                    }
+                });
+            }
+        });
     </script>
 </head>
 <body>
