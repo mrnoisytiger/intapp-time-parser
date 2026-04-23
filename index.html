@@ -36,7 +36,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
         }
-        
+
         /* Toggle Buttons */
         .toggle-group {
             display: inline-flex;
@@ -80,7 +80,7 @@
             vertical-align: top;
             page-break-inside: avoid;
         }
-        
+
         /* Grouping Headers */
         .level1-row {
             background-color: #000000;
@@ -99,7 +99,7 @@
             font-weight: bold;
             color: #333;
         }
-        
+
         /* Alternating row colors */
         .row-odd {
             background-color: #ffffff;
@@ -107,7 +107,7 @@
         .row-even {
             background-color: #f2f2f2;
         }
-        
+
         /* Total Row Styling */
         .total-row {
             background-color: #e6f0f4;
@@ -146,8 +146,8 @@
                 margin: 0;
                 background-color: #ffffff;
                 /* Force browsers to print background colors */
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
             .container {
                 box-shadow: none;
@@ -176,7 +176,7 @@
         <h2>IntApp Time Summary</h2>
         <p>Select your Intapp Time HTML export file to generate a cleaned summary.</p>
         <input type="file" id="fileInput" accept=".html" />
-        
+
         <div id="viewToggles" style="display: none;">
             <div class="toggle-group">
                 <button class="toggle-btn active" id="btnDateMode">Group by Date</button>
@@ -184,11 +184,22 @@
             </div>
         </div>
     </div>
-    
+
     <div id="outputContainer"></div>
 </div>
 
 <script>
+    // Helper to escape HTML and prevent XSS
+    function escapeHTML(str) {
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     // State to hold the parsed data and current view mode
     let allEntries = [];
     let currentMode = 'date'; // 'date' or 'client'
@@ -234,15 +245,15 @@
         const parser = new DOMParser();
         const doc = parser.parseFromString(htmlString, 'text/html');
         const tables = doc.querySelectorAll('table.details');
-        
+
         let currentDateContext = "Unknown Date";
 
         tables.forEach(table => {
             const slCells = Array.from(table.querySelectorAll('td.sl'));
-            
+
             // Check if this table actually holds a time entry by looking for the "Client:" label
             const clientCell = slCells.find(td => td.textContent.trim().includes('Client:'));
-            
+
             // If there's a date header in this table, update the current date context
             const dateCell = table.querySelector('td.sl[colspan="3"]');
             if (dateCell && dateCell.textContent.match(/\d{1,2}\/\d{1,2}\/\d{4}/)) {
@@ -253,15 +264,15 @@
 
             // The first sibling is the number, the second sibling is the name
             const clientName = clientCell.nextElementSibling?.nextElementSibling?.textContent.trim() || "Unknown Client";
-            
+
             // Process Matter details
             const matterCell = slCells.find(td => td.textContent.trim().includes('Matter:'));
             let matterNumberRaw = matterCell?.nextElementSibling?.textContent.trim() || "";
             let matterNameRaw = matterCell?.nextElementSibling?.nextElementSibling?.textContent.trim() || "Unknown Matter";
-            
+
             // Strip leading zeros from numeric sequences (e.g. 56522-00004 -> 56522-4)
             const strippedMatterNumber = matterNumberRaw.replace(/\b0+(?=\d)/g, '');
-            
+
             // Combine name and stripped number
             const matterName = strippedMatterNumber ? `${matterNameRaw} (${strippedMatterNumber})` : matterNameRaw;
 
@@ -305,7 +316,7 @@
 
     // Rendering Logic
     function renderTable() {
-        outputContainer.innerHTML = ''; 
+        outputContainer.innerHTML = '';
 
         if (allEntries.length === 0) {
             outputContainer.innerHTML = '<p>No valid time entries found in the uploaded file.</p>';
@@ -332,33 +343,33 @@
         for (const [date, entries] of Object.entries(entriesByDate)) {
             // Level 1: Date (Collapsible)
             html += `<tr class="level1-row collapsible" onclick="toggleSection(this, 1)">
-                        <td colspan="4"><span class="toggle-icon">▼</span> ${date}</td>
+                        <td colspan="4"><span class="toggle-icon">▼</span> ${escapeHTML(date)}</td>
                      </tr>`;
-            
+
             html += `<tr class="header-row">
                         <th style="width: 20%;">Client Name</th>
                         <th style="width: 25%;">Matter Name</th>
                         <th style="width: 10%;">Hours Billed</th>
                         <th style="width: 45%;">Narrative</th>
                      </tr>`;
-            
+
             let dailyTotal = 0;
-            
+
             entries.forEach((entry, index) => {
                 dailyTotal += parseFloat(entry.hours) || 0;
-                
+
                 const rowClass = index % 2 === 0 ? 'row-odd' : 'row-even';
                 html += `<tr class="${rowClass}">
-                            <td>${entry.clientName}</td>
-                            <td>${entry.matterName}</td>
-                            <td>${entry.hours}</td>
-                            <td>${entry.narrative}</td>
+                            <td>${escapeHTML(entry.clientName)}</td>
+                            <td>${escapeHTML(entry.matterName)}</td>
+                            <td>${escapeHTML(entry.hours)}</td>
+                            <td>${escapeHTML(entry.narrative)}</td>
                          </tr>`;
             });
-            
+
             // Total Row for the Date
             html += `<tr class="total-row">
-                        <td colspan="2" style="text-align: right; padding-right: 20px;"><strong>Total for ${date}:</strong></td>
+                        <td colspan="2" style="text-align: right; padding-right: 20px;"><strong>Total for ${escapeHTML(date)}:</strong></td>
                         <td style="font-weight: bold;">${dailyTotal.toFixed(2)}</td>
                         <td></td>
                      </tr>`;
@@ -388,7 +399,7 @@
         sortedClients.forEach(client => {
             // Level 1: Client Name (Collapsible)
             html += `<tr class="level1-row collapsible" onclick="toggleSection(this, 1)">
-                        <td colspan="3"><span class="toggle-icon">▼</span> ${client}</td>
+                        <td colspan="3"><span class="toggle-icon">▼</span> ${escapeHTML(client)}</td>
                      </tr>`;
 
             // Sort Matters Alphabetically
@@ -397,7 +408,7 @@
             sortedMatters.forEach(matter => {
                 // Level 2: Matter Name (which now also contains the stripped matter number) (Collapsible)
                 html += `<tr class="level2-row collapsible" onclick="toggleSection(this, 2)">
-                            <td colspan="3" style="padding-left: 20px;"><span class="toggle-icon">▼</span> ${matter}</td>
+                            <td colspan="3" style="padding-left: 20px;"><span class="toggle-icon">▼</span> ${escapeHTML(matter)}</td>
                          </tr>`;
 
                 // Header for the data rows
@@ -411,9 +422,9 @@
                 grouped[client][matter].forEach((entry, index) => {
                     const rowClass = index % 2 === 0 ? 'row-odd' : 'row-even';
                     html += `<tr class="${rowClass}">
-                                <td>${entry.date}</td>
-                                <td>${entry.hours}</td>
-                                <td>${entry.narrative}</td>
+                                <td>${escapeHTML(entry.date)}</td>
+                                <td>${escapeHTML(entry.hours)}</td>
+                                <td>${escapeHTML(entry.narrative)}</td>
                              </tr>`;
                 });
             });
