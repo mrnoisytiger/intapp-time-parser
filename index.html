@@ -200,6 +200,14 @@
     const btnClientMode = document.getElementById('btnClientMode');
     const outputContainer = document.getElementById('outputContainer');
 
+    // Helpers
+    function setMode(mode) {
+        currentMode = mode;
+        btnDateMode.classList.toggle('active', mode === 'date');
+        btnClientMode.classList.toggle('active', mode === 'client');
+        renderTable();
+    }
+
     // Event Listeners
     fileInput.addEventListener('change', function(event) {
         const file = event.target.files[0];
@@ -214,19 +222,8 @@
         reader.readAsText(file);
     });
 
-    btnDateMode.addEventListener('click', () => {
-        currentMode = 'date';
-        btnDateMode.classList.add('active');
-        btnClientMode.classList.remove('active');
-        renderTable();
-    });
-
-    btnClientMode.addEventListener('click', () => {
-        currentMode = 'client';
-        btnClientMode.classList.add('active');
-        btnDateMode.classList.remove('active');
-        renderTable();
-    });
+    btnDateMode.addEventListener('click', () => setMode('date'));
+    btnClientMode.addEventListener('click', () => setMode('client'));
 
     // Parsing Logic
     function parseHTMLData(htmlString) {
